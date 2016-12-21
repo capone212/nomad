@@ -20,6 +20,7 @@ import (
 var basicResources = &structs.Resources{
 	CPU:      250,
 	MemoryMB: 256,
+	DiskMB:   20,
 	Networks: []*structs.NetworkResource{
 		&structs.NetworkResource{
 			IP:            "0.0.0.0",
@@ -83,7 +84,7 @@ func testDriverContexts(task *structs.Task) (*DriverContext, *ExecContext) {
 	alloc := mock.Alloc()
 	execCtx := NewExecContext(allocDir, alloc.ID)
 
-	taskEnv, err := GetTaskEnv(allocDir, cfg.Node, task, alloc)
+	taskEnv, err := GetTaskEnv(allocDir, cfg.Node, task, alloc, "")
 	if err != nil {
 		return nil, nil
 	}
@@ -118,7 +119,7 @@ func TestDriver_GetTaskEnv(t *testing.T) {
 
 	alloc := mock.Alloc()
 	alloc.Name = "Bar"
-	env, err := GetTaskEnv(nil, nil, task, alloc)
+	env, err := GetTaskEnv(nil, nil, task, alloc, "")
 	if err != nil {
 		t.Fatalf("GetTaskEnv() failed: %v", err)
 	}
@@ -152,6 +153,7 @@ func TestDriver_GetTaskEnv(t *testing.T) {
 		"NOMAD_ALLOC_ID":                alloc.ID,
 		"NOMAD_ALLOC_NAME":              alloc.Name,
 		"NOMAD_TASK_NAME":               task.Name,
+		"NOMAD_JOB_NAME":                alloc.Job.Name,
 	}
 
 	act := env.EnvMap()

@@ -3,8 +3,8 @@ package driver
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/hashicorp/nomad/client/allocdir"
 	"github.com/hashicorp/nomad/client/config"
@@ -59,6 +59,15 @@ type Driver interface {
 
 	// Drivers must validate their configuration
 	Validate(map[string]interface{}) error
+
+	// Abilities returns the abilities of the driver
+	Abilities() DriverAbilities
+}
+
+// DriverAbilities marks the abilities the driver has.
+type DriverAbilities struct {
+	// SendSignals marks the driver as being able to send signals
+	SendSignals bool
 }
 
 // DriverContext is a means to inject dependencies such as loggers, configs, and
@@ -117,12 +126,13 @@ type DriverHandle interface {
 
 	// Stats returns aggregated stats of the driver
 	Stats() (*cstructs.TaskResourceUsage, error)
+
+	// Signal is used to send a signal to the task
+	Signal(s os.Signal) error
 }
 
 // ExecContext is shared between drivers within an allocation
 type ExecContext struct {
-	sync.Mutex
-
 	// AllocDir contains information about the alloc directory structure.
 	AllocDir *allocdir.AllocDir
 
@@ -138,13 +148,14 @@ func NewExecContext(alloc *allocdir.AllocDir, allocID string) *ExecContext {
 // GetTaskEnv converts the alloc dir, the node, task and alloc into a
 // TaskEnvironment.
 func GetTaskEnv(allocDir *allocdir.AllocDir, node *structs.Node,
-	task *structs.Task, alloc *structs.Allocation) (*env.TaskEnvironment, error) {
+	task *structs.Task, alloc *structs.Allocation, vaultToken string) (*env.TaskEnvironment, error) {
 
 	tg := alloc.Job.LookupTaskGroup(alloc.TaskGroup)
 	env := env.NewTaskEnvironment(node).
 		SetTaskMeta(task.Meta).
 		SetTaskGroupMeta(tg.Meta).
 		SetJobMeta(alloc.Job.Meta).
+		SetJobName(alloc.Job.Name).
 		SetEnvvars(task.Env).
 		SetTaskName(task.Name)
 
@@ -156,6 +167,7 @@ func GetTaskEnv(allocDir *allocdir.AllocDir, node *structs.Node,
 		}
 
 		env.SetTaskLocalDir(filepath.Join(taskdir, allocdir.TaskLocal))
+		env.SetSecretsDir(filepath.Join(taskdir, allocdir.TaskSecrets))
 	}
 
 	if task.Resources != nil {
@@ -166,6 +178,10 @@ func GetTaskEnv(allocDir *allocdir.AllocDir, node *structs.Node,
 
 	if alloc != nil {
 		env.SetAlloc(alloc)
+	}
+
+	if task.Vault != nil {
+		env.SetVaultToken(vaultToken, task.Vault.Env)
 	}
 
 	return env.Build(), nil
