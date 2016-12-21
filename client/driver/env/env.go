@@ -154,7 +154,9 @@ func (t *TaskEnvironment) Build() *TaskEnvironment {
 		for label, value := range network.MapLabelToValues(nil) {
 			t.TaskEnv[fmt.Sprintf("%s%s", IpPrefix, label)] = network.IP
 			t.TaskEnv[fmt.Sprintf("%s%s", HostPortPrefix, label)] = strconv.Itoa(value.Base)
-			t.TaskEnv[fmt.Sprintf("%s%s%s", HostPortPrefix, label, PortRangeSuffixSpan)] = strconv.Itoa(value.Span)
+			if value.Span > 1 {
+				t.TaskEnv[fmt.Sprintf("%s%s%s", PortPrefix, label, PortRangeSuffixSpan)] = strconv.Itoa(value.Span)
+			}
 			if forwardedPort, ok := t.PortMap[label]; ok {
 				value = structs.PortRange{Label: label, Base: forwardedPort, Span: 1}
 			}
